@@ -1,0 +1,2 @@
+*.zip filter=lfs diff=lfs merge=lfs -text
+.reports_mid/**/overlay_timeseries.csv filter=lfs diff=lfs merge=lfs -text

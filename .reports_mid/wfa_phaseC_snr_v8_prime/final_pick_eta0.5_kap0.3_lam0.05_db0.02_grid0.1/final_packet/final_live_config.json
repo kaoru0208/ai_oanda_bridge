@@ -1,0 +1,32 @@
+{
+  "mode": "SNR_v8_prime",
+  "snr_params": {
+    "eta": 0.5,
+    "kap": 0.3,
+    "lam_min": 0.05,
+    "deadband": 0.02,
+    "grid": 0.1
+  },
+  "slip_base_pips": 0.5,
+  "guards": {
+    "psr_tol": 0.01,
+    "turnover_rel": 0.01
+  },
+  "notes": "OOS slip decision + SNR pick（WFA Phase‑C）",
+  "slip_mode": "base_plus_offsets",
+  "slip_offsets": {
+    "base": 0.5,
+    "q": 0.75,
+    "min_count": 20,
+    "cap": 0.5,
+    "alpha": 0.8,
+    "counts": {
+      "NY_ROLL": 2,
+      "OTHER": 1
+    },
+    "offsets": {
+      "NY_ROLL": 0.0,
+      "OTHER": 0.0
+    }
+  }
+}
