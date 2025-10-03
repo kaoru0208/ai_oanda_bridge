@@ -1,0 +1,23 @@
+name: Release hash
+on:
+  release:
+    types: [published]
+jobs:
+  sha256:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download asset
+        uses: actions/download-release-asset@v1
+        with:
+          url: ${{ github.event.release.assets[0].browser_download_url }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: .
+      - name: Compute SHA256
+        run: |
+          file="$(ls -1 *.zip | head -n1)"
+          sha256sum "$file" | tee SHA256.txt
+      - name: Append to release notes (gh CLI)
+        env: { GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} }
+        run: |
+          gh release edit "${{ github.event.release.tag_name }}" \
+            --notes "SHA256:\n\`\`\`\n$(cat SHA256.txt)\n\`\`\`"
