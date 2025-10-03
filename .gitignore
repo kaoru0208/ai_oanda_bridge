@@ -1,0 +1,15 @@
+# OS / Python
+.DS_Store
+__pycache__/
+*.py[cod]
+.venv/ .env
+
+# 生データや重い成果物はコミットしない
+.reports*/
+.reports_*/
+.reports_mid/
+logs/
+*.log
+# 大きい画像・CSVは原則コミットしない（Release or LFSのみ）
+*.png
+*.csv
