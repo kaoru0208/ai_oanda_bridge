@@ -6,7 +6,7 @@ on:
   push:
     branches: [ main ]
 
-# 同じ PR/ブランチの古い実行を自動キャンセル（re-run 時間を節約）
+# 同じPR/ブランチの古い実行をキャンセルして時短
 concurrency:
   group: pr-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
@@ -17,27 +17,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # 差分判定や三点リーダー比較を確実にするため全履歴を取得
-          fetch-depth: 0
+          fetch-depth: 0  # 三点差分や起点検出を安定化
 
-      # (PR時のみ) 変更差分から「重いバリデーション」要否を判定
+      # (PR時のみ) 変更差分から重いバリデーション要否を判定
       - name: Decide if validation is needed (PR only)
         id: needs
         if: github.event_name == 'pull_request'
         run: |
           set -euo pipefail
-          git fetch --no-tags --prune origin "${{ github.base_ref }}" --depth=2
-          changed="$(git diff --name-only --no-renames "origin/${{ github.base_ref }}"...HEAD || true)"
-          echo "changed<<EOF" >> "$GITHUB_OUTPUT"
-          echo "$changed" >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
-          if echo "$changed" | grep -E -q '(^|/)(\.github/workflows/|ai_oanda_bridge/|.*\.py$)'; then
-            echo "need_validate=true" >> "$GITHUB_OUTPUT"
+          git fetch --no-tags --prune origin "${{ github.base_ref }}" --depth=1
+          if git diff --name-only --no-renames "origin/${{ github.base_ref }}"...HEAD | \
+             grep -E -q '(^|/)(\.github/workflows/|ai_oanda_bridge/|.*\.py$)'; then
+            echo "need_validate=true" >> "$GITHUB_OUTPUT"   # 正しい出力転送先（GITHUB_OUTPUT）
           else
             echo "need_validate=false" >> "$GITHUB_OUTPUT"
           fi
 
       - uses: actions/setup-python@v5
+        if: github.event_name != 'pull_request' || steps.needs.outputs.need_validate == 'true'
         with:
           python-version: '3.11'
 
