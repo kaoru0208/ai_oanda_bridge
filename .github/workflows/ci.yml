@@ -1,17 +1,14 @@
 name: CI
 permissions:
   contents: read
-
 on:
   pull_request:
     branches: [ main ]
   push:
     branches: [ main ]
-
 concurrency:
   group: pr-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
-
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -19,7 +16,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - name: Decide if validation is needed (PR only)
         id: needs
         if: github.event_name == 'pull_request'
@@ -37,18 +33,15 @@ jobs:
           else
             echo "need_validate=false" >> "$GITHUB_OUTPUT"
           fi
-
       - name: Install jq (only when needed)
         if: github.event_name != 'pull_request' || steps.needs.outputs.need_validate == 'true'
         run: sudo apt-get update && sudo apt-get install -y jq
-
       - name: Validate final_live_config.json (only when needed)
         if: github.event_name != 'pull_request' || steps.needs.outputs.need_validate == 'true'
         run: |
           CFG=".reports_mid/wfa_phaseC_snr_v8_prime/final_pick_eta0.5_kap0.3_lam0.05_db0.02_grid0.1/final_packet/final_live_config.json"
           test -f "$CFG"
           jq -re 'select((.slip_base_pips==0.5) and ((.slip_offsets|type)=="object"))|"OK"' "$CFG" >/dev/null
-
       - name: Skip note (docs/meta only)
         if: github.event_name == 'pull_request' && steps.needs.outputs.need_validate != 'true'
         run: echo "Only docs/meta changes; skipping heavy validation."
