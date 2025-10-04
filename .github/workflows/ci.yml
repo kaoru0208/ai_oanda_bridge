@@ -6,7 +6,7 @@ on:
   push:
     branches: [ main ]
 
-# 同じ PR/ブランチの古い実行を自動キャンセル
+# 同じ PR/ブランチの古い実行を自動キャンセル（re-run 時間を節約）
 concurrency:
   group: pr-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
@@ -16,14 +16,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # 差分判定や三点リーダー比較を確実にするため全履歴を取得
+          fetch-depth: 0
 
-      # (PR時だけ) 変更差分を見て、重いバリデーションが必要か判定
+      # (PR時のみ) 変更差分から「重いバリデーション」要否を判定
       - name: Decide if validation is needed (PR only)
         id: needs
         if: github.event_name == 'pull_request'
         run: |
           set -euo pipefail
-          git fetch origin "${{ github.base_ref }}" --depth=1
+          git fetch --no-tags --prune origin "${{ github.base_ref }}" --depth=2
           changed="$(git diff --name-only --no-renames "origin/${{ github.base_ref }}"...HEAD || true)"
           echo "changed<<EOF" >> "$GITHUB_OUTPUT"
           echo "$changed" >> "$GITHUB_OUTPUT"
