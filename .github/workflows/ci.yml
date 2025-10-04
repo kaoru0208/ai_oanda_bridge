@@ -7,21 +7,26 @@ on:
     branches: [ main ]
   push:
     branches: [ main ]
+  workflow_dispatch: {}
 
+# PR=head_ref / push=ref_name を用いた安定グルーピング + 重複ラン自動キャンセル
 concurrency:
-  group: pr-${{ github.head_ref || github.run_id }}
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
   validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      # (PR) 変更差分から重い検証の要否を判定
       - name: Decide if validation is needed (PR only)
-        id: needs
+        id: decide_pr
         if: github.event_name == 'pull_request'
         run: |
           set -euo pipefail
@@ -38,17 +43,50 @@ jobs:
             echo "need_validate=false" >> "$GITHUB_OUTPUT"
           fi
 
+      # (push) 直前コミットとの差分から重い検証の要否を判定
+      - name: Decide if validation is needed (push only)
+        id: decide_push
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          BEFORE="${{ github.event.before }}"
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            range="HEAD^..HEAD"
+          else
+            range="$BEFORE..${{ github.sha }}"
+          fi
+          changed="$(git diff --name-only --no-renames $range || true)"
+          {
+            echo "changed<<EOF"
+            echo "$changed"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+          if echo "$changed" | grep -E -q '(^|/)(\.github/workflows/|ai_oanda_bridge/|.*\.py$)'; then
+            echo "need_validate=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "need_validate=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # jq は必要時だけ入れる（PR/Push のどちらでも「要検証」判定なら）
       - name: Install jq (only when needed)
-        if: github.event_name != 'pull_request' || steps.needs.outputs.need_validate == 'true'
+        if: |
+          (github.event_name == 'pull_request' && steps.decide_pr.outputs.need_validate == 'true') ||
+          (github.event_name == 'push' && steps.decide_push.outputs.need_validate == 'true') ||
+          (github.event_name == 'workflow_dispatch')
         run: sudo apt-get update && sudo apt-get install -y jq
 
+      # 重い検証本体（必要時のみ実行）
       - name: Validate final_live_config.json (only when needed)
-        if: github.event_name != 'pull_request' || steps.needs.outputs.need_validate == 'true'
+        if: |
+          (github.event_name == 'pull_request' && steps.decide_pr.outputs.need_validate == 'true') ||
+          (github.event_name == 'push' && steps.decide_push.outputs.need_validate == 'true') ||
+          (github.event_name == 'workflow_dispatch')
         run: |
+          set -euo pipefail
           CFG=".reports_mid/wfa_phaseC_snr_v8_prime/final_pick_eta0.5_kap0.3_lam0.05_db0.02_grid0.1/final_packet/final_live_config.json"
           test -f "$CFG"
           jq -re 'select((.slip_base_pips==0.5) and ((.slip_offsets|type)=="object"))|"OK"' "$CFG" >/dev/null
 
       - name: Skip note (docs/meta only)
-        if: github.event_name == 'pull_request' && steps.needs.outputs.need_validate != 'true'
+        if: github.event_name == 'pull_request' && steps.decide_pr.outputs.need_validate != 'true'
         run: echo "Only docs/meta changes; skipping heavy validation."
