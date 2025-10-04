@@ -1,12 +1,11 @@
 name: CI
-
 on:
   pull_request:
     branches: [ main ]
   push:
     branches: [ main ]
 
-# 同じPR/ブランチの古い実行をキャンセルして時短
+# 同一ブランチ/PRの古い実行を自動キャンセル（待ち時間を節約）
 concurrency:
   group: pr-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
@@ -17,38 +16,36 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # 三点差分や起点検出を安定化
-
-      # (PR時のみ) 変更差分から重いバリデーション要否を判定
+          # 差分/三点比較が崩れないよう全履歴取得
+          fetch-depth: 0
+      # (PR時のみ) 変更差分を見て重いチェックを分岐
       - name: Decide if validation is needed (PR only)
         id: needs
         if: github.event_name == 'pull_request'
         run: |
           set -euo pipefail
-          git fetch --no-tags --prune origin "${{ github.base_ref }}" --depth=1
-          if git diff --name-only --no-renames "origin/${{ github.base_ref }}"...HEAD | \
-             grep -E -q '(^|/)(\.github/workflows/|ai_oanda_bridge/|.*\.py$)'; then
-            echo "need_validate=true" >> "$GITHUB_OUTPUT"   # 正しい出力転送先（GITHUB_OUTPUT）
+          git fetch --no-tags --prune origin "${{ github.base_ref }}" --depth=2
+          changed="$(git diff --name-only --no-renames "origin/${{ github.base_ref }}"...HEAD || true)"
+          echo "changed<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$changed" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+          if echo "$changed" | grep -E -q '(^|/)(\.github/workflows/|ai_oanda_bridge/|.*\.py$)'; then
+            echo "need_validate=true" >> "$GITHUB_OUTPUT"
           else
             echo "need_validate=false" >> "$GITHUB_OUTPUT"
           fi
-
       - uses: actions/setup-python@v5
-        if: github.event_name != 'pull_request' || steps.needs.outputs.need_validate == 'true'
         with:
           python-version: '3.11'
-
       - name: Install jq (only when needed)
         if: github.event_name != 'pull_request' || steps.needs.outputs.need_validate == 'true'
         run: sudo apt-get update && sudo apt-get install -y jq
-
       - name: Validate final_live_config.json (only when needed)
         if: github.event_name != 'pull_request' || steps.needs.outputs.need_validate == 'true'
         run: |
           CFG=".reports_mid/wfa_phaseC_snr_v8_prime/final_pick_eta0.5_kap0.3_lam0.05_db0.02_grid0.1/final_packet/final_live_config.json"
           test -f "$CFG"
           jq -re 'select((.slip_base_pips==0.5) and ((.slip_offsets|type)=="object"))|"OK"' "$CFG" >/dev/null
-
       - name: Skip note (docs/meta only)
         if: github.event_name == 'pull_request' && steps.needs.outputs.need_validate != 'true'
         run: echo "Only docs/meta changes; skipping heavy validation."
