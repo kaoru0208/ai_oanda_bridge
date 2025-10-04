@@ -1,15 +1,29 @@
 name: CI
+
 on:
   pull_request:
+    branches: [ main ]
+    # 変更がこの中に含まれるときだけ実行
+    paths:
+      - '**/*.py'
+      - '.github/workflows/**'
+      - 'ai_oanda_bridge/**'
   push:
     branches: [ main ]
+
+# 同じ PR/ブランチで古い実行を自動キャンセル
+concurrency:
+  group: pr-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
 jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
-        with: { python-version: '3.11' }
+        with:
+          python-version: '3.11'
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
       - name: Validate final_live_config.json
