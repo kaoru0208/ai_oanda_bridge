@@ -1,24 +1,21 @@
 name: CI
 permissions:
   contents: read
-
 on:
   pull_request:
     branches: [ main ]
   push:
     branches: [ main ]
-
+  workflow_dispatch: {}
 concurrency:
-  group: pr-${{ github.head_ref || github.run_id }}
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
-
 jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+        with: { fetch-depth: 0 }
 
       - name: Decide if validation is needed (PR only)
         id: needs
