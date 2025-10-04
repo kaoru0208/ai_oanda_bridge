@@ -1,17 +1,15 @@
 name: CI
 permissions:
   contents: read
-
 on:
   pull_request:
     branches: [ main ]
   push:
     branches: [ main ]
-
+# ★ 安定グルーピング：PR なら head_ref、push なら ref_name を使う
 concurrency:
-  group: pr-${{ github.head_ref || github.run_id }}
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
-
 jobs:
   validate:
     runs-on: ubuntu-latest
