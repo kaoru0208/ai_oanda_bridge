@@ -1,0 +1,23 @@
+name: CI (merge queue)
+permissions:
+  contents: read
+on:
+  merge_group:
+    types: [checks_requested]
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name }}
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+      - name: Validate final_live_config.json
+        run: |
+          CFG=".reports_mid/wfa_phaseC_snr_v8_prime/final_pick_eta0.5_kap0.3_lam0.05_db0.02_grid0.1/final_packet/final_live_config.json"
+          test -f "$CFG"
+          jq -re 'select((.slip_base_pips==0.5) and ((.slip_offsets|type)=="object"))|"OK"' "$CFG" >/dev/null
